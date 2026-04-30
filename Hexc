@@ -1,507 +1,290 @@
--- [[ UI ANTI-COOLDOWN & ANTI-KICK DESA RAYAP ]]
--- Versi: Silent Bypass 2026 + UI Edition
+-- [ Silent Core System - Desa Rayap ]
+-- Versi: 2026 Stealth Edition
 
-local Player = game:GetService("Players").LocalPlayer
-local MT = getrawmetatable(game)
-local OldNC = MT.__namecall
-setreadonly(MT, false)
-
--- ==================== CORE SCRIPT ====================
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
 
 local kickBlocked = 0
 local skillFired = 0
 local afkBlocked = 0
-local isActive = true
-local antiAfkActive = true
-local antiKickActive = true
-local skillBypassActive = true
 
-MT.__namecall = newcclosure(function(self, ...)
+local antiKick = true
+local skillBypass = true
+local antiAfk = true
+
+-- ==================== STEALTH HOOK ====================
+
+local hookmetamethod = hookmetamethod or (syn and syn.hookmetamethod)
+
+local OldNamecall
+OldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local Method = getnamecallmethod()
     local Args = {...}
 
-    if antiKickActive and (Method == "Kick" or Method == "kick") then
-        kickBlocked = kickBlocked + 1
-        warn("Sistem mencoba Kick, tapi diblokir!")
+    -- Anti Kick
+    if antiKick and (Method == "Kick" or Method == "kick") then
+        kickBlocked += 1
         return nil
     end
 
-    if skillBypassActive and Method == "FireServer" and (tostring(self):lower():find("skill") or tostring(self):lower():find("attack")) then
-        task.spawn(function()
-            task.wait(0.2)
-            return OldNC(self, unpack(Args))
-        end)
-        skillFired = skillFired + 1
-        return nil
+    -- Skill Bypass (Randomized Timing)
+    if skillBypass and Method == "FireServer" then
+        local lowered = tostring(self):lower()
+        if lowered:find("skill") or lowered:find("attack") or lowered:find("ability") or lowered:find("action") then
+            skillFired += 1
+            
+            task.spawn(function()
+                local delay = 0.12 + math.random(1, 9) / 100  -- 0.12 - 0.21 detik (lebih natural)
+                task.wait(delay)
+                return OldNamecall(self, unpack(Args))
+            end)
+            return nil
+        end
     end
 
-    return OldNC(self, ...)
+    return OldNamecall(self, ...)
 end)
-setreadonly(MT, true)
 
-Player.Idled:Connect(function()
-    if antiAfkActive then
-        game:GetService("VirtualUser"):CaptureController()
-        game:GetService("VirtualUser"):ClickButton2(Vector2.new())
-        afkBlocked = afkBlocked + 1
+-- Anti AFK
+LocalPlayer.Idled:Connect(function()
+    if antiAfk then
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+        afkBlocked += 1
     end
 end)
 
--- ==================== UI SYSTEM ====================
+-- ==================== STEALTH UI ====================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AntiKickUI"
+ScreenGui.Name = "CoreInterface_" .. math.random(1000, 9999)
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = game:GetService("CoreGui")
 
--- ==================== MAIN FRAME ====================
-
 local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 320, 0, 380)
-MainFrame.Position = UDim2.new(0, 20, 0.5, -190)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+MainFrame.Name = "Panel"
+MainFrame.Size = UDim2.new(0, 300, 0, 340)
+MainFrame.Position = UDim2.new(0, 25, 0.5, -170)
+MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 MainFrame.BorderSizePixel = 0
 MainFrame.Parent = ScreenGui
 
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 12)
-MainCorner.Parent = MainFrame
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 10)
+Corner.Parent = MainFrame
 
-local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = Color3.fromRGB(0, 200, 100)
-MainStroke.Thickness = 1.5
-MainStroke.Parent = MainFrame
+local Stroke = Instance.new("UIStroke")
+Stroke.Color = Color3.fromRGB(45, 45, 55)
+Stroke.Thickness = 1.2
+Stroke.Parent = MainFrame
 
--- Shadow Effect
-local Shadow = Instance.new("Frame")
-Shadow.Size = UDim2.new(1, 10, 1, 10)
-Shadow.Position = UDim2.new(0, -5, 0, 5)
-Shadow.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
-Shadow.BackgroundTransparency = 0.85
-Shadow.BorderSizePixel = 0
-Shadow.ZIndex = MainFrame.ZIndex - 1
-Shadow.Parent = MainFrame
-
-local ShadowCorner = Instance.new("UICorner")
-ShadowCorner.CornerRadius = UDim.new(0, 14)
-ShadowCorner.Parent = Shadow
-
--- ==================== TITLE BAR ====================
-
+-- Title Bar
 local TitleBar = Instance.new("Frame")
-TitleBar.Name = "TitleBar"
-TitleBar.Size = UDim2.new(1, 0, 0, 45)
-TitleBar.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+TitleBar.Size = UDim2.new(1, 0, 0, 38)
+TitleBar.BackgroundColor3 = Color3.fromRGB(24, 24, 30)
 TitleBar.BorderSizePixel = 0
 TitleBar.Parent = MainFrame
 
 local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.CornerRadius = UDim.new(0, 10)
 TitleCorner.Parent = TitleBar
 
-local TitleFix = Instance.new("Frame")
-TitleFix.Size = UDim2.new(1, 0, 0.5, 0)
-TitleFix.Position = UDim2.new(0, 0, 0.5, 0)
-TitleFix.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
-TitleFix.BorderSizePixel = 0
-TitleFix.Parent = TitleBar
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -90, 1, 0)
+Title.Position = UDim2.new(0, 12, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Core System"
+Title.TextColor3 = Color3.fromRGB(200, 200, 210)
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Font = Enum.Font.GothamSemibold
+Title.TextSize = 14
+Title.Parent = TitleBar
 
-local TitleIcon = Instance.new("TextLabel")
-TitleIcon.Size = UDim2.new(0, 30, 1, 0)
-TitleIcon.Position = UDim2.new(0, 10, 0, 0)
-TitleIcon.BackgroundTransparency = 1
-TitleIcon.Text = "🛡️"
-TitleIcon.TextScaled = true
-TitleIcon.Font = Enum.Font.GothamBold
-TitleIcon.Parent = TitleBar
+local Version = Instance.new("TextLabel")
+Version.Size = UDim2.new(0, 60, 1, 0)
+Version.Position = UDim2.new(1, -68, 0, 0)
+Version.BackgroundTransparency = 1
+Version.Text = "v1.8"
+Version.TextColor3 = Color3.fromRGB(90, 90, 100)
+Version.TextSize = 11
+Version.Font = Enum.Font.Gotham
+Version.Parent = TitleBar
 
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Name = "TitleLabel"
-TitleLabel.Size = UDim2.new(1, -100, 1, 0)
-TitleLabel.Position = UDim2.new(0, 45, 0, 0)
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "DESA RAYAP BYPASS"
-TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLabel.TextScaled = true
-TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.Parent = TitleBar
+-- Stats
+local function CreateStat(name, icon, color)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(0, 85, 0, 52)
+    Frame.BackgroundColor3 = Color3.fromRGB(22, 22, 27)
+    Frame.BorderSizePixel = 0
+    Frame.Parent = StatsContainer -- (akan dibuat di bawah)
 
-local VersionLabel = Instance.new("TextLabel")
-VersionLabel.Size = UDim2.new(0, 80, 0, 14)
-VersionLabel.Position = UDim2.new(0, 45, 0.6, 0)
-VersionLabel.BackgroundTransparency = 1
-VersionLabel.Text = "v2026 Silent"
-VersionLabel.TextColor3 = Color3.fromRGB(200, 255, 220)
-VersionLabel.TextSize = 10
-VersionLabel.Font = Enum.Font.Gotham
-VersionLabel.Parent = TitleBar
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 8)
+    c.Parent = Frame
 
--- Close Button
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-CloseBtn.Position = UDim2.new(1, -38, 0.5, -15)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-CloseBtn.Text = "✕"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.TextScaled = true
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.BorderSizePixel = 0
-CloseBtn.Parent = TitleBar
+    local Icon = Instance.new("TextLabel")
+    Icon.Size = UDim2.new(1,0,0,22)
+    Icon.BackgroundTransparency = 1
+    Icon.Text = icon
+    Icon.TextSize = 18
+    Icon.Font = Enum.Font.GothamBold
+    Icon.TextColor3 = color
+    Icon.Parent = Frame
 
-local CloseBtnCorner = Instance.new("UICorner")
-CloseBtnCorner.CornerRadius = UDim.new(0, 6)
-CloseBtnCorner.Parent = CloseBtn
+    local Count = Instance.new("TextLabel")
+    Count.Name = "Count"
+    Count.Size = UDim2.new(1,0,0,18)
+    Count.Position = UDim2.new(0,0,0,25)
+    Count.BackgroundTransparency = 1
+    Count.Text = "0"
+    Count.TextColor3 = Color3.fromRGB(255,255,255)
+    Count.TextSize = 15
+    Count.Font = Enum.Font.GothamBold
+    Count.Parent = Frame
 
--- Minimize Button
-local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 30, 0, 30)
-MinBtn.Position = UDim2.new(1, -74, 0.5, -15)
-MinBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 0)
-MinBtn.Text = "−"
-MinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-MinBtn.TextScaled = true
-MinBtn.Font = Enum.Font.GothamBold
-MinBtn.BorderSizePixel = 0
-MinBtn.Parent = TitleBar
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1,0,0,12)
+    Label.Position = UDim2.new(0,0,1,-14)
+    Label.BackgroundTransparency = 1
+    Label.Text = name
+    Label.TextColor3 = Color3.fromRGB(110,110,120)
+    Label.TextSize = 9
+    Label.Font = Enum.Font.Gotham
+    Label.Parent = Frame
 
-local MinBtnCorner = Instance.new("UICorner")
-MinBtnCorner.CornerRadius = UDim.new(0, 6)
-MinBtnCorner.Parent = MinBtn
+    return Count
+end
 
--- ==================== STATUS BAR ====================
-
-local StatusBar = Instance.new("Frame")
-StatusBar.Size = UDim2.new(1, -20, 0, 30)
-StatusBar.Position = UDim2.new(0, 10, 0, 53)
-StatusBar.BackgroundColor3 = Color3.fromRGB(20, 25, 20)
-StatusBar.BorderSizePixel = 0
-StatusBar.Parent = MainFrame
-
-local StatusCorner = Instance.new("UICorner")
-StatusCorner.CornerRadius = UDim.new(0, 8)
-StatusCorner.Parent = StatusBar
-
-local StatusDot = Instance.new("Frame")
-StatusDot.Size = UDim2.new(0, 10, 0, 10)
-StatusDot.Position = UDim2.new(0, 10, 0.5, -5)
-StatusDot.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
-StatusDot.BorderSizePixel = 0
-StatusDot.Parent = StatusBar
-
-local StatusDotCorner = Instance.new("UICorner")
-StatusDotCorner.CornerRadius = UDim.new(1, 0)
-StatusDotCorner.Parent = StatusDot
-
-local StatusText = Instance.new("TextLabel")
-StatusText.Size = UDim2.new(1, -30, 1, 0)
-StatusText.Position = UDim2.new(0, 28, 0, 0)
-StatusText.BackgroundTransparency = 1
-StatusText.Text = "● SISTEM AKTIF & BERJALAN"
-StatusText.TextColor3 = Color3.fromRGB(0, 255, 100)
-StatusText.TextSize = 12
-StatusText.Font = Enum.Font.GothamBold
-StatusText.TextXAlignment = Enum.TextXAlignment.Left
-StatusText.Parent = StatusBar
-
--- ==================== STATS SECTION ====================
-
-local StatsTitle = Instance.new("TextLabel")
-StatsTitle.Size = UDim2.new(1, -20, 0, 20)
-StatsTitle.Position = UDim2.new(0, 10, 0, 93)
-StatsTitle.BackgroundTransparency = 1
-StatsTitle.Text = "📊 STATISTIK REAL-TIME"
-StatsTitle.TextColor3 = Color3.fromRGB(150, 150, 170)
-StatsTitle.TextSize = 11
-StatsTitle.Font = Enum.Font.GothamBold
-StatsTitle.TextXAlignment = Enum.TextXAlignment.Left
-StatsTitle.Parent = MainFrame
-
--- Stats Container
 local StatsContainer = Instance.new("Frame")
-StatsContainer.Size = UDim2.new(1, -20, 0, 70)
-StatsContainer.Position = UDim2.new(0, 10, 0, 115)
+StatsContainer.Size = UDim2.new(1, -20, 0, 60)
+StatsContainer.Position = UDim2.new(0, 10, 0, 50)
 StatsContainer.BackgroundTransparency = 1
 StatsContainer.Parent = MainFrame
 
-local StatsLayout = Instance.new("UIListLayout")
-StatsLayout.FillDirection = Enum.FillDirection.Horizontal
-StatsLayout.Padding = UDim.new(0, 6)
-StatsLayout.Parent = StatsContainer
+local Layout = Instance.new("UIListLayout")
+Layout.FillDirection = Enum.FillDirection.Horizontal
+Layout.Padding = UDim.new(0, 8)
+Layout.Parent = StatsContainer
 
-local function MakeStat(icon, label, color)
-    local Box = Instance.new("Frame")
-    Box.Size = UDim2.new(0, 92, 1, 0)
-    Box.BackgroundColor3 = Color3.fromRGB(20, 25, 30)
-    Box.BorderSizePixel = 0
-    Box.Parent = StatsContainer
+local KickStat   = CreateStat("BLOCKED", "🚫", Color3.fromRGB(255, 85, 85))
+local SkillStat  = CreateStat("FIRED", "⚡", Color3.fromRGB(80, 180, 255))
+local AfkStat    = CreateStat("AFK", "🔄", Color3.fromRGB(255, 200, 60))
 
-    local BoxCorner = Instance.new("UICorner")
-    BoxCorner.CornerRadius = UDim.new(0, 8)
-    BoxCorner.Parent = Box
+-- Toggles
+local y = 130
+local function AddToggle(text, default, callback)
+    local Toggle = Instance.new("TextButton")
+    Toggle.Size = UDim2.new(1, -20, 0, 34)
+    Toggle.Position = UDim2.new(0, 10, 0, y)
+    Toggle.BackgroundColor3 = Color3.fromRGB(24, 24, 30)
+    Toggle.Text = ""
+    Toggle.Parent = MainFrame
 
-    local BoxStroke = Instance.new("UIStroke")
-    BoxStroke.Color = color
-    BoxStroke.Thickness = 1
-    BoxStroke.Transparency = 0.5
-    BoxStroke.Parent = Box
+    local tc = Instance.new("UICorner")
+    tc.CornerRadius = UDim.new(0, 8)
+    tc.Parent = Toggle
 
-    local IconL = Instance.new("TextLabel")
-    IconL.Size = UDim2.new(1, 0, 0, 28)
-    IconL.Position = UDim2.new(0, 0, 0, 5)
-    IconL.BackgroundTransparency = 1
-    IconL.Text = icon
-    IconL.TextScaled = true
-    IconL.Parent = Box
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -70, 1, 0)
+    Label.Position = UDim2.new(0, 12, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.TextColor3 = Color3.fromRGB(210, 210, 220)
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Font = Enum.Font.Gotham
+    Label.TextSize = 13
+    Label.Parent = Toggle
 
-    local CountL = Instance.new("TextLabel")
-    CountL.Name = "Count"
-    CountL.Size = UDim2.new(1, 0, 0, 20)
-    CountL.Position = UDim2.new(0, 0, 0, 30)
-    CountL.BackgroundTransparency = 1
-    CountL.Text = "0"
-    CountL.TextColor3 = color
-    CountL.TextScaled = true
-    CountL.Font = Enum.Font.GothamBold
-    CountL.Parent = Box
+    local Switch = Instance.new("Frame")
+    Switch.Size = UDim2.new(0, 38, 0, 20)
+    Switch.Position = UDim2.new(1, -48, 0.5, -10)
+    Switch.BackgroundColor3 = default and Color3.fromRGB(70, 180, 120) or Color3.fromRGB(60, 60, 70)
+    Switch.Parent = Toggle
 
-    local NameL = Instance.new("TextLabel")
-    NameL.Size = UDim2.new(1, -4, 0, 14)
-    NameL.Position = UDim2.new(0, 2, 1, -16)
-    NameL.BackgroundTransparency = 1
-    NameL.Text = label
-    NameL.TextColor3 = Color3.fromRGB(130, 130, 150)
-    NameL.TextSize = 9
-    NameL.Font = Enum.Font.Gotham
-    NameL.Parent = Box
-
-    return CountL
-end
-
-local KickCount = MakeStat("🚫", "KICK BLOCK", Color3.fromRGB(255, 80, 80))
-local SkillCount = MakeStat("⚡", "SKILL FIRE", Color3.fromRGB(0, 200, 255))
-local AfkCount = MakeStat("🔄", "AFK BLOCK", Color3.fromRGB(255, 200, 0))
-
--- ==================== TOGGLE SECTION ====================
-
-local ToggleTitle = Instance.new("TextLabel")
-ToggleTitle.Size = UDim2.new(1, -20, 0, 20)
-ToggleTitle.Position = UDim2.new(0, 10, 0, 196)
-ToggleTitle.BackgroundTransparency = 1
-ToggleTitle.Text = "⚙️ PENGATURAN MODUL"
-ToggleTitle.TextColor3 = Color3.fromRGB(150, 150, 170)
-ToggleTitle.TextSize = 11
-ToggleTitle.Font = Enum.Font.GothamBold
-ToggleTitle.TextXAlignment = Enum.TextXAlignment.Left
-ToggleTitle.Parent = MainFrame
-
-local function MakeToggle(yPos, labelText, defaultVal, callback)
-    local ToggleFrame = Instance.new("Frame")
-    ToggleFrame.Size = UDim2.new(1, -20, 0, 38)
-    ToggleFrame.Position = UDim2.new(0, 10, 0, yPos)
-    ToggleFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 30)
-    ToggleFrame.BorderSizePixel = 0
-    ToggleFrame.Parent = MainFrame
-
-    local TFCorner = Instance.new("UICorner")
-    TFCorner.CornerRadius = UDim.new(0, 8)
-    TFCorner.Parent = ToggleFrame
-
-    local TLabel = Instance.new("TextLabel")
-    TLabel.Size = UDim2.new(1, -60, 1, 0)
-    TLabel.Position = UDim2.new(0, 12, 0, 0)
-    TLabel.BackgroundTransparency = 1
-    TLabel.Text = labelText
-    TLabel.TextColor3 = Color3.fromRGB(220, 220, 240)
-    TLabel.TextSize = 12
-    TLabel.Font = Enum.Font.Gotham
-    TLabel.TextXAlignment = Enum.TextXAlignment.Left
-    TLabel.Parent = ToggleFrame
-
-    local ToggleBG = Instance.new("Frame")
-    ToggleBG.Size = UDim2.new(0, 44, 0, 22)
-    ToggleBG.Position = UDim2.new(1, -52, 0.5, -11)
-    ToggleBG.BackgroundColor3 = defaultVal and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(80, 80, 90)
-    ToggleBG.BorderSizePixel = 0
-    ToggleBG.Parent = ToggleFrame
-
-    local TBGCorner = Instance.new("UICorner")
-    TBGCorner.CornerRadius = UDim.new(1, 0)
-    TBGCorner.Parent = ToggleBG
+    local sc = Instance.new("UICorner")
+    sc.CornerRadius = UDim.new(1,0)
+    sc.Parent = Switch
 
     local Knob = Instance.new("Frame")
     Knob.Size = UDim2.new(0, 16, 0, 16)
-    Knob.Position = defaultVal and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
-    Knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    Knob.BorderSizePixel = 0
-    Knob.Parent = ToggleBG
+    Knob.Position = default and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+    Knob.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    Knob.Parent = Switch
 
-    local KnobCorner = Instance.new("UICorner")
-    KnobCorner.CornerRadius = UDim.new(1, 0)
-    KnobCorner.Parent = Knob
+    local kc = Instance.new("UICorner")
+    kc.CornerRadius = UDim.new(1,0)
+    kc.Parent = Knob
 
-    local state = defaultVal
-    local ToggleBtn = Instance.new("TextButton")
-    ToggleBtn.Size = UDim2.new(1, 0, 1, 0)
-    ToggleBtn.BackgroundTransparency = 1
-    ToggleBtn.Text = ""
-    ToggleBtn.Parent = ToggleFrame
+    local state = default
 
-    ToggleBtn.MouseButton1Click:Connect(function()
+    Toggle.MouseButton1Click:Connect(function()
         state = not state
         callback(state)
-        local tweenService = game:GetService("TweenService")
-        local info = TweenInfo.new(0.2, Enum.EasingStyle.Quad)
-        tweenService:Create(ToggleBG, info, {
-            BackgroundColor3 = state and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(80, 80, 90)
+        
+        game:GetService("TweenService"):Create(Switch, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+            BackgroundColor3 = state and Color3.fromRGB(70, 180, 120) or Color3.fromRGB(60, 60, 70)
         }):Play()
-        tweenService:Create(Knob, info, {
-            Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+        
+        game:GetService("TweenService"):Create(Knob, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+            Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
         }):Play()
     end)
 
-    return ToggleFrame
+    y += 42
 end
 
-MakeToggle(220, "🚫  Anti-Kick", true, function(v)
-    antiKickActive = v
-end)
+AddToggle("Anti Kick", true, function(v) antiKick = v end)
+AddToggle("Skill Bypass", true, function(v) skillBypass = v end)
+AddToggle("Anti AFK", true, function(v) antiAfk = v end)
 
-MakeToggle(264, "⚡  Skill Bypass (0.2s)", true, function(v)
-    skillBypassActive = v
-end)
+-- Status & Log
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, -20, 0, 20)
+Status.Position = UDim2.new(0, 10, 1, -32)
+Status.BackgroundTransparency = 1
+Status.Text = "● System Active"
+Status.TextColor3 = Color3.fromRGB(100, 200, 140)
+Status.TextSize = 12
+Status.Font = Enum.Font.Gotham
+Status.TextXAlignment = Enum.TextXAlignment.Left
+Status.Parent = MainFrame
 
-MakeToggle(308, "🔄  Anti-AFK", true, function(v)
-    antiAfkActive = v
-end)
-
--- ==================== LOG SECTION ====================
-
-local LogLabel = Instance.new("TextLabel")
-LogLabel.Name = "LogLabel"
-LogLabel.Size = UDim2.new(1, -20, 0, 20)
-LogLabel.Position = UDim2.new(0, 10, 1, -28)
-LogLabel.BackgroundTransparency = 1
-LogLabel.Text = "⏳ Menunggu aktivitas..."
-LogLabel.TextColor3 = Color3.fromRGB(100, 100, 120)
-LogLabel.TextSize = 10
-LogLabel.Font = Enum.Font.Gotham
-LogLabel.TextXAlignment = Enum.TextXAlignment.Left
-LogLabel.Parent = MainFrame
-
--- ==================== DRAGGABLE ====================
-
-local dragging, dragInput, dragStart, startPos
-
+-- Draggable
+local dragging
 TitleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
-        dragStart = input.Position
-        startPos = MainFrame.Position
+        local startPos = MainFrame.Position
+        local startMouse = input.Position
+
+        local conn
+        conn = UserInputService.InputChanged:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+                local delta = inp.Position - startMouse
+                MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end)
+
         input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 dragging = false
+                conn:Disconnect()
             end
         end)
     end
 end)
 
-TitleBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
-        dragInput = input
-    end
-end)
-
-game:GetService("UserInputService").InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        local delta = input.Position - dragStart
-        MainFrame.Position = UDim2.new(
-            startPos.X.Scale,
-            startPos.X.Offset + delta.X,
-            startPos.Y.Scale,
-            startPos.Y.Offset + delta.Y
-        )
-    end
-end)
-
--- ==================== MINIMIZE ====================
-
-local minimized = false
-local originalSize = MainFrame.Size
-
-MinBtn.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    local TS = game:GetService("TweenService")
-    if minimized then
-        TS:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 320, 0, 45)
-        }):Play()
-        MinBtn.Text = "□"
-    else
-        TS:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = originalSize
-        }):Play()
-        MinBtn.Text = "−"
-    end
-end)
-
--- ==================== CLOSE ====================
-
-CloseBtn.MouseButton1Click:Connect(function()
-    local TS = game:GetService("TweenService")
-    TS:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-        Size = UDim2.new(0, 0, 0, 0),
-        Position = UDim2.new(
-            MainFrame.Position.X.Scale,
-            MainFrame.Position.X.Offset + 160,
-            MainFrame.Position.Y.Scale,
-            MainFrame.Position.Y.Offset + 190
-        )
-    }):Play()
-    task.wait(0.35)
-    ScreenGui:Destroy()
-end)
-
--- ==================== UPDATE LOOP ====================
-
-local logMessages = {
-    "Memantau aktivitas server...",
-    "Sistem berjalan normal ✓",
-    "Bypass aktif & terlindungi",
-    "Mendeteksi pola kick...",
-    "Cooldown disamarkan ✓"
-}
-
-local logIndex = 1
-
+-- Update Loop
 task.spawn(function()
     while ScreenGui.Parent do
-        task.wait(1)
-        KickCount.Text = tostring(kickBlocked)
-        SkillCount.Text = tostring(skillFired)
-        AfkCount.Text = tostring(afkBlocked)
-
-        -- Blinking dot
-        StatusDot.BackgroundColor3 = StatusDot.BackgroundColor3 == Color3.fromRGB(0, 255, 100)
-            and Color3.fromRGB(0, 180, 70)
-            or Color3.fromRGB(0, 255, 100)
-
-        -- Rotating log
-        logIndex = logIndex % #logMessages + 1
-        LogLabel.Text = "» " .. logMessages[logIndex]
+        task.wait(1.2)
+        KickStat.Text = tostring(kickBlocked)
+        SkillStat.Text = tostring(skillFired)
+        AfkStat.Text = tostring(afkBlocked)
     end
 end)
 
--- ==================== ENTRANCE ANIMATION ====================
-
-MainFrame.Size = UDim2.new(0, 0, 0, 0)
-MainFrame.Position = UDim2.new(0, 20 + 160, 0.5, 0)
-
-game:GetService("TweenService"):Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
-    Size = UDim2.new(0, 320, 0, 380),
-    Position = UDim2.new(0, 20, 0.5, -190)
-}):Play()
-
-print("--- UI + SCRIPT AKTIF ---")
-print("Mode: Penyamaran & Anti-Kick")
+print("Core System Loaded")
