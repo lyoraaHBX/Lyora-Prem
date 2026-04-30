@@ -1,5 +1,5 @@
 -- [ Silent Core System - Desa Rayap ]
--- Versi: 2026 Stealth Anti-Kick Enhanced
+-- Versi: 2026 Anti-Method 0x3
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -13,31 +13,42 @@ local antiKick = true
 local skillBypass = true
 local antiAfk = true
 
--- ==================== ENHANCED ANTI-KICK ====================
+-- ==================== ANTI-KICK (Method 0x3 Bypass) ====================
 
 local function BlockKick(...)
     kickBlocked += 1
-    -- warn("Kick attempt blocked")
     return nil
 end
 
--- Layer 1: Hook global Namecall
+-- Direct Override (Paling Aman)
+LocalPlayer.Kick = BlockKick
+
+-- Hook hanya di LocalPlayer (bukan di game)
+local OldPlayerNamecall
+OldPlayerNamecall = hookmetamethod(LocalPlayer, "__namecall", function(self, ...)
+    if not antiKick then return OldPlayerNamecall(self, ...) end
+    
+    local Method = getnamecallmethod()
+    
+    if Method == "Kick" or Method == "kick" then
+        return BlockKick()
+    end
+    
+    return OldPlayerNamecall(self, ...)
+end)
+
+-- Skill Bypass (Hanya hook remote tertentu, bukan semua FireServer)
 local OldNamecall
 OldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local Method = getnamecallmethod()
     local Args = {...}
 
-    if antiKick and (Method == "Kick" or Method == "kick") then
-        return BlockKick()
-    end
-
-    -- Skill Bypass dengan random delay
     if skillBypass and Method == "FireServer" then
-        local lowered = tostring(self):lower()
-        if lowered:find("skill") or lowered:find("attack") or lowered:find("ability") then
+        local name = tostring(self):lower()
+        if name:find("skill") or name:find("attack") or name:find("ability") or name:find("action") then
             skillFired += 1
             task.spawn(function()
-                task.wait(0.11 + math.random(1,11)/100)
+                task.wait(0.105 + math.random(3,12)/100)
                 return OldNamecall(self, unpack(Args))
             end)
             return nil
@@ -47,32 +58,7 @@ OldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     return OldNamecall(self, ...)
 end)
 
--- Layer 2: Direct Kick Override (Paling Penting)
-LocalPlayer.Kick = BlockKick
-
--- Layer 3: Metatable Player Protection
-local playerMT = getrawmetatable(LocalPlayer)
-if playerMT then
-    local oldPlayerNC
-    oldPlayerNC = hookmetamethod(LocalPlayer, "__namecall", function(self, ...)
-        if getnamecallmethod() == "Kick" then
-            return BlockKick()
-        end
-        return oldPlayerNC(self, ...)
-    end)
-end
-
--- Extra Protection
-LocalPlayer.CharacterAdded:Connect(function(char)
-    task.wait(1)
-    if char:FindFirstChild("Humanoid") then
-        char.Humanoid.Died:Connect(function()
-            -- Beberapa server kick lewat death
-        end)
-    end
-end)
-
--- ==================== ANTI-AFK ====================
+-- Anti AFK
 LocalPlayer.Idled:Connect(function()
     if antiAfk then
         VirtualUser:CaptureController()
@@ -81,37 +67,4 @@ LocalPlayer.Idled:Connect(function()
     end
 end)
 
--- ==================== STEALTH UI (Sama seperti sebelumnya tapi lebih clean) ====================
-
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "Interface_" .. math.random(1111,9999)
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = game:GetService("CoreGui")
-
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 300, 0, 340)
-MainFrame.Position = UDim2.new(0, 30, 0.5, -170)
-MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-MainFrame.Parent = ScreenGui
-
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 10)
-Corner.Parent = MainFrame
-
-local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 36)
-TitleBar.BackgroundColor3 = Color3.fromRGB(23, 23, 28)
-TitleBar.Parent = MainFrame
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -80, 1, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "Core Interface"
-Title.TextColor3 = Color3.fromRGB(195, 195, 205)
-Title.Font = Enum.Font.GothamSemibold
-Title.TextSize = 14
-Title.Parent = TitleBar
-
--- Stats, Toggle, dll (sama seperti versi sebelumnya, aku skip biar tidak terlalu panjang)
-
-print("Core System Loaded - Anti-Kick Enhanced")
+print("Core System Loaded - Method 0x3 Protection Active")
