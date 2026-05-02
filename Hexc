@@ -1,70 +1,518 @@
--- [ Silent Core System - Desa Rayap ]
--- Versi: 2026 Anti-Method 0x3
+local repo = "https://raw.githubusercontent.com/lyoraaHBX/LibraryLyora-X/refs/heads/main/Lyora%20X"
+local AuraUI = loadstring(game:HttpGet(repo))()
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
-local VirtualUser = game:GetService("VirtualUser")
 
-local kickBlocked = 0
-local skillFired = 0
-local afkBlocked = 0
+-- ═══════════════════════════════════════════
+--              STATE
+-- ═══════════════════════════════════════════
 
-local antiKick = true
-local skillBypass = true
-local antiAfk = true
+local State = {
+    ESP        = false,
+    Speed      = false,
+    JumpHigh   = false,
+    SpeedValue = 50,
+    JumpValue  = 150,
+}
 
--- ==================== ANTI-KICK (Method 0x3 Bypass) ====================
+local ESPConnections = {}
+local ESPObjects     = {}
 
-local function BlockKick(...)
-    kickBlocked += 1
+-- ═══════════════════════════════════════════
+--           WEAPON LIST
+-- ═══════════════════════════════════════════
+
+local WeaponList = {
+    "Wajan","Bambu","Bara Sangihe","Bara Sangihe Emas","Bara Sangihe Zamrud",
+    "BaseballBat","Black Mandau","Clurit","Clurit Emas","Clurit Perunggu",
+    "Guling","Karih","Kemoceng","Kerih Candra","Kerih Ruby","Keris",
+    "Keris Emas","Keris Gaib","Keris Hitam","Kujang","Kujang Abadi",
+    "Kujang Emas","Mandau","Panci","Rencong","Rencong Emas","Rencong Perak",
+    "Sandal","Sapu Lidi","Trisula","Trisula Ungu",
+}
+
+-- ═══════════════════════════════════════════
+--              HELPERS
+-- ═══════════════════════════════════════════
+
+local function GetWeaponName(character)
+    if not character then return nil end
+    for _, tool in pairs(character:GetChildren()) do
+        if tool:IsA("Tool") and table.find(WeaponList, tool.Name) then
+            return tool.Name
+        end
+    end
     return nil
 end
 
--- Direct Override (Paling Aman)
-LocalPlayer.Kick = BlockKick
+local function IsSeeker(player)
+    local v = player:FindFirstChild("IsSeeker")
+    return v and v:IsA("BoolValue") and v.Value
+end
 
--- Hook hanya di LocalPlayer (bukan di game)
-local OldPlayerNamecall
-OldPlayerNamecall = hookmetamethod(LocalPlayer, "__namecall", function(self, ...)
-    if not antiKick then return OldPlayerNamecall(self, ...) end
-    
-    local Method = getnamecallmethod()
-    
-    if Method == "Kick" or Method == "kick" then
-        return BlockKick()
-    end
-    
-    return OldPlayerNamecall(self, ...)
-end)
+local function GetHumanoid(player)
+    local char = player.Character
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
 
--- Skill Bypass (Hanya hook remote tertentu, bukan semua FireServer)
-local OldNamecall
-OldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    local Method = getnamecallmethod()
-    local Args = {...}
+-- ═══════════════════════════════════════════
+--              ESP CORE
+-- ═══════════════════════════════════════════
 
-    if skillBypass and Method == "FireServer" then
-        local name = tostring(self):lower()
-        if name:find("skill") or name:find("attack") or name:find("ability") or name:find("action") then
-            skillFired += 1
-            task.spawn(function()
-                task.wait(0.105 + math.random(3,12)/100)
-                return OldNamecall(self, unpack(Args))
-            end)
-            return nil
+local function CleanESP(player)
+    local name = player.Name
+    if ESPConnections[name] then
+        for _, c in pairs(ESPConnections[name]) do
+            pcall(function() c:Disconnect() end)
         end
+        ESPConnections[name] = nil
+    end
+    if ESPObjects[name] then
+        for _, obj in pairs(ESPObjects[name]) do
+            pcall(function() obj:Destroy() end)
+        end
+        ESPObjects[name] = nil
+    end
+end
+
+local function CreateESP(player)
+    if player == LocalPlayer then return end
+    CleanESP(player)
+    if not State.ESP then return end
+
+    local function applyToChar(character)
+        CleanESP(player)
+        if not State.ESP then return end
+
+        local conns = {}
+        local objs  = {}
+
+        -- Highlight (Chams)
+        local ok, Head = pcall(function()
+            return character:WaitForChild("Head", 5)
+        end)
+        if not ok or not Head then return end
+
+        local Highlight = Instance.new("Highlight")
+        Highlight.Adornee             = character
+        Highlight.FillColor           = Color3.fromRGB(255, 0, 100)
+        Highlight.OutlineColor        = Color3.fromRGB(255, 255, 255)
+        Highlight.FillTransparency    = 0.5
+        Highlight.OutlineTransparency = 0
+        Highlight.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
+        Highlight.Parent              = character
+        table.insert(objs, Highlight)
+
+        -- BillboardGui
+        local Billboard = Instance.new("BillboardGui")
+        Billboard.Adornee     = Head
+        Billboard.AlwaysOnTop = true
+        Billboard.Size        = UDim2.new(0, 200, 0, 60)
+        Billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+        Billboard.MaxDistance = 1000
+        Billboard.Parent      = character
+        table.insert(objs, Billboard)
+
+        -- Line Frame (ESP Line)
+        local LineGui = Instance.new("ScreenGui")
+        LineGui.Name          = "ESPLine_"..player.Name
+        LineGui.ResetOnSpawn  = false
+        LineGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        pcall(function()
+            LineGui.Parent = game:GetService("CoreGui")
+        end)
+        table.insert(objs, LineGui)
+
+        local LineFrame = Instance.new("Frame")
+        LineFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+        LineFrame.BorderSizePixel  = 0
+        LineFrame.AnchorPoint      = Vector2.new(0.5, 0)
+        LineFrame.Parent           = LineGui
+        table.insert(objs, LineFrame)
+
+        -- TextLabel
+        local TextLabel = Instance.new("TextLabel")
+        TextLabel.Size                  = UDim2.new(1, 0, 1, 0)
+        TextLabel.BackgroundTransparency = 1
+        TextLabel.TextScaled            = false
+        TextLabel.TextSize              = 13
+        TextLabel.Font                  = Enum.Font.GothamSemibold
+        TextLabel.TextStrokeTransparency = 0
+        TextLabel.TextStrokeColor3      = Color3.fromRGB(0, 0, 0)
+        TextLabel.Parent                = Billboard
+
+        -- RenderStepped
+        local Camera = workspace.CurrentCamera
+        local renderConn = RunService.RenderStepped:Connect(function()
+            if not State.ESP then
+                LineFrame.Visible = false
+                return
+            end
+
+            local hrp    = character:FindFirstChild("HumanoidRootPart")
+            local myChar = LocalPlayer.Character
+            local myHRP  = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if not hrp or not myHRP then
+                LineFrame.Visible = false
+                return
+            end
+
+            local dist   = math.floor((myHRP.Position - hrp.Position).Magnitude)
+            local weapon = GetWeaponName(character)
+            local seeker = IsSeeker(player)
+
+            -- Text
+            if seeker then
+                TextLabel.Text = weapon
+                    and string.format("%s\n%d studs\nPENCARI [%s]", player.Name, dist, weapon)
+                    or  string.format("%s\n%d studs\nPENCARI", player.Name, dist)
+                TextLabel.TextColor3 = Color3.fromRGB(255, 60, 60)
+                Highlight.FillColor  = Color3.fromRGB(255, 0, 0)
+            else
+                if weapon then
+                    TextLabel.Text       = string.format("%s\n%d studs\n[%s]", player.Name, dist, weapon)
+                    TextLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+                    Highlight.FillColor  = Color3.fromRGB(255, 150, 0)
+                else
+                    TextLabel.Text       = string.format("%s\n%d studs", player.Name, dist)
+                    TextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    Highlight.FillColor  = Color3.fromRGB(255, 0, 100)
+                end
+            end
+
+            -- ESP Line (dari bawah layar ke posisi player)
+            local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            local vp = Camera.ViewportSize
+            local bottomCenter = Vector2.new(vp.X / 2, vp.Y)
+            local targetPos    = Vector2.new(screenPos.X, screenPos.Y)
+
+            if onScreen and screenPos.Z > 0 then
+                LineFrame.Visible = true
+                local dx = targetPos.X - bottomCenter.X
+                local dy = targetPos.Y - bottomCenter.Y
+                local len = math.sqrt(dx*dx + dy*dy)
+                local ang = math.atan2(dy, dx)
+                LineFrame.Size     = UDim2.new(0, len, 0, 2)
+                LineFrame.Position = UDim2.new(
+                    0, bottomCenter.X,
+                    0, bottomCenter.Y
+                )
+                LineFrame.Rotation = math.deg(ang)
+                LineFrame.BackgroundColor3 = seeker
+                    and Color3.fromRGB(255, 60, 60)
+                    or  Color3.fromRGB(255, 255, 0)
+            else
+                LineFrame.Visible = false
+            end
+        end)
+        table.insert(conns, renderConn)
+
+        -- Cleanup on character removing
+        local removeConn = player.CharacterRemoving:Connect(function()
+            CleanESP(player)
+        end)
+        table.insert(conns, removeConn)
+
+        ESPConnections[player.Name] = conns
+        ESPObjects[player.Name]     = objs
     end
 
-    return OldNamecall(self, ...)
-end)
+    -- Apply sekarang
+    if player.Character then
+        task.spawn(applyToChar, player.Character)
+    end
 
--- Anti AFK
-LocalPlayer.Idled:Connect(function()
-    if antiAfk then
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
-        afkBlocked += 1
+    -- Apply saat respawn / join baru
+    local addedConn = player.CharacterAdded:Connect(function(char)
+        task.wait(0.5)
+        applyToChar(char)
+    end)
+
+    if not ESPConnections[player.Name] then
+        ESPConnections[player.Name] = {}
+    end
+    table.insert(ESPConnections[player.Name], addedConn)
+end
+
+local function EnableAllESP()
+    for _, p in pairs(Players:GetPlayers()) do
+        CreateESP(p)
+    end
+end
+
+local function DisableAllESP()
+    for _, p in pairs(Players:GetPlayers()) do
+        CleanESP(p)
+    end
+end
+
+-- ═══════════════════════════════════════════
+--         SPEED & JUMP LOOP
+-- ═══════════════════════════════════════════
+
+local DefaultSpeed = 16
+local DefaultJump  = 50
+
+RunService.Heartbeat:Connect(function()
+    local char = LocalPlayer.Character
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
+    if State.Speed then
+        hum.WalkSpeed = State.SpeedValue
+    else
+        hum.WalkSpeed = DefaultSpeed
+    end
+
+    if State.JumpHigh then
+        hum.JumpPower = State.JumpValue
+    else
+        hum.JumpPower = DefaultJump
     end
 end)
 
-print("Core System Loaded - Method 0x3 Protection Active")
+-- ═══════════════════════════════════════════
+--              BUILD UI
+-- ═══════════════════════════════════════════
+
+local Window = AuraUI.new({
+    Title   = "Script Hub",
+    Size    = UDim2.new(0, 620, 0, 480),
+    Keybind = Enum.KeyCode.RightShift,
+})
+
+-- ───────────────────────────────────────────
+--              TAB: ESP
+-- ───────────────────────────────────────────
+
+local TabESP = Window:AddTab({ Name = "ESP", Icon = "👁" })
+
+TabESP:AddSection({ Name = "Visual" })
+
+local ESPToggle = TabESP:AddToggle({
+    Name        = "ESP / Chams",
+    Description = "Highlight + nama + jarak + weapon",
+    Default     = false,
+    Callback    = function(state)
+        State.ESP = state
+        if state then
+            EnableAllESP()
+            AuraUI.Notify({
+                Title    = "ESP",
+                Message  = "ESP aktif!",
+                Type     = "success",
+                Duration = 2,
+            }, Window.ScreenGui)
+        else
+            DisableAllESP()
+            AuraUI.Notify({
+                Title    = "ESP",
+                Message  = "ESP dimatikan.",
+                Type     = "info",
+                Duration = 2,
+            }, Window.ScreenGui)
+        end
+    end,
+})
+
+TabESP:AddSection({ Name = "Info" })
+
+TabESP:AddLabel({ Text = "🔴 PENCARI  — highlight merah, teks merah" })
+TabESP:AddLabel({ Text = "🟡 Bersenjata — highlight orange, teks kuning" })
+TabESP:AddLabel({ Text = "⚪ Normal  — highlight pink, teks putih" })
+TabESP:AddLabel({ Text = "ESP Line muncul dari bawah layar ke tiap player." })
+
+-- ───────────────────────────────────────────
+--              TAB: MOVEMENT
+-- ───────────────────────────────────────────
+
+local TabMove = Window:AddTab({ Name = "Movement", Icon = "🏃" })
+
+TabMove:AddSection({ Name = "Speed" })
+
+local SpeedToggle = TabMove:AddToggle({
+    Name        = "Speed Hack",
+    Description = "Lari lebih cepat",
+    Default     = false,
+    Callback    = function(state)
+        State.Speed = state
+        AuraUI.Notify({
+            Title    = "Speed",
+            Message  = state and ("Speed ON — "..State.SpeedValue.." stud/s") or "Speed OFF",
+            Type     = state and "success" or "info",
+            Duration = 2,
+        }, Window.ScreenGui)
+    end,
+})
+
+local SpeedSlider = TabMove:AddSlider({
+    Name     = "Walk Speed",
+    Min      = 16,
+    Max      = 500,
+    Default  = 50,
+    Step     = 1,
+    Suffix   = " stud/s",
+    Callback = function(v)
+        State.SpeedValue = v
+    end,
+})
+
+local SpeedBind = TabMove:AddKeybind({
+    Name     = "Keybind Speed Toggle",
+    Default  = Enum.KeyCode.F,
+    Callback = function(key)
+        -- toggle speed saat key ditekan
+        State.Speed = not State.Speed
+        SpeedToggle:Set(State.Speed)
+        AuraUI.Notify({
+            Title    = "Speed",
+            Message  = State.Speed and "Speed ON" or "Speed OFF",
+            Type     = State.Speed and "success" or "info",
+            Duration = 1,
+        }, Window.ScreenGui)
+    end,
+})
+
+TabMove:AddSection({ Name = "Jump" })
+
+local JumpToggle = TabMove:AddToggle({
+    Name        = "Jump High",
+    Description = "Lompat lebih tinggi",
+    Default     = false,
+    Callback    = function(state)
+        State.JumpHigh = state
+        AuraUI.Notify({
+            Title    = "Jump",
+            Message  = state and ("Jump ON — "..State.JumpValue.." power") or "Jump OFF",
+            Type     = state and "success" or "info",
+            Duration = 2,
+        }, Window.ScreenGui)
+    end,
+})
+
+local JumpSlider = TabMove:AddSlider({
+    Name     = "Jump Power",
+    Min      = 50,
+    Max      = 500,
+    Default  = 150,
+    Step     = 5,
+    Suffix   = " pow",
+    Callback = function(v)
+        State.JumpValue = v
+    end,
+})
+
+local JumpBind = TabMove:AddKeybind({
+    Name     = "Keybind Jump Toggle",
+    Default  = Enum.KeyCode.G,
+    Callback = function(key)
+        State.JumpHigh = not State.JumpHigh
+        JumpToggle:Set(State.JumpHigh)
+        AuraUI.Notify({
+            Title    = "Jump",
+            Message  = State.JumpHigh and "Jump ON" or "Jump OFF",
+            Type     = State.JumpHigh and "success" or "info",
+            Duration = 1,
+        }, Window.ScreenGui)
+    end,
+})
+
+-- Mobile: tombol Speed & Jump on‑screen
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+if isMobile then
+    local MobileGui = Instance.new("ScreenGui")
+    MobileGui.Name          = "MobileButtons"
+    MobileGui.ResetOnSpawn  = false
+    MobileGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    MobileGui.DisplayOrder  = 998
+    pcall(function()
+        MobileGui.Parent = game:GetService("CoreGui")
+    end)
+
+    -- helper buat tombol mobile
+    local function MakeBtn(text, posX, posY, color, callback)
+        local btn = Instance.new("TextButton")
+        btn.Size             = UDim2.new(0, 72, 0, 72)
+        btn.Position         = UDim2.new(0, posX, 1, posY)
+        btn.BackgroundColor3 = color
+        btn.Text             = text
+        btn.TextColor3       = Color3.fromRGB(255,255,255)
+        btn.TextSize         = 13
+        btn.Font             = Enum.Font.GothamBold
+        btn.AutoButtonColor  = false
+        btn.ZIndex           = 500
+        btn.Parent           = MobileGui
+
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(0, 18)
+        c.Parent = btn
+
+        local s = Instance.new("UIStroke")
+        s.Color     = Color3.fromRGB(255,255,255)
+        s.Thickness = 1.5
+        s.Transparency = 0.7
+        s.Parent = btn
+
+        btn.MouseButton1Click:Connect(callback)
+        return btn
+    end
+
+    -- Speed button — kanan bawah
+    local speedBtn = MakeBtn(
+        "⚡ SPD\nOFF",
+        -170, -90,
+        Color3.fromRGB(100, 60, 220),
+        function()
+            State.Speed = not State.Speed
+            SpeedToggle:Set(State.Speed)
+            speedBtn.Text = State.Speed and "⚡ SPD\nON" or "⚡ SPD\nOFF"
+            speedBtn.BackgroundColor3 = State.Speed
+                and Color3.fromRGB(130, 80, 255)
+                or  Color3.fromRGB(100, 60, 220)
+        end
+    )
+
+    -- Jump button — kanan bawah (di atas speed)
+    local jumpBtn = MakeBtn(
+        "🚀 JMP\nOFF",
+        -90, -90,
+        Color3.fromRGB(40, 160, 100),
+        function()
+            State.JumpHigh = not State.JumpHigh
+            JumpToggle:Set(State.JumpHigh)
+            jumpBtn.Text = State.JumpHigh and "🚀 JMP\nON" or "🚀 JMP\nOFF"
+            jumpBtn.BackgroundColor3 = State.JumpHigh
+                and Color3.fromRGB(60, 210, 130)
+                or  Color3.fromRGB(40, 160, 100)
+        end
+    )
+end
+
+-- ───────────────────────────────────────────
+--       PLAYER ADDED → auto ESP
+-- ───────────────────────────────────────────
+
+Players.PlayerAdded:Connect(function(player)
+    if State.ESP then
+        CreateESP(player)
+    end
+    -- tetap pasang CharacterAdded watcher biar kalo ESP di‑on nanti bisa diapply
+    player.CharacterAdded:Connect(function()
+        if State.ESP then
+            task.wait(0.5)
+            CreateESP(player)
+        end
+    end)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    CleanESP(player)
+end)
+
+-- ═══════════════════════════════════════════
+print("✅ Script loaded! RightShift = toggle UI")
+print("   F = toggle Speed  |  G = toggle Jump")
